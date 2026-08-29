@@ -27,7 +27,6 @@ All software engineering and Agile artifacts are organized under the [`docs/`](.
 | **Requirements Specification (SRS)** | Personas, MoSCoW functional requirements, NFRs, and traceability matrix | [📄 `docs/requirements-specification.md`](./docs/requirements-specification.md) |
 | **User Stories & Acceptance Criteria** | Definition of Ready/Done, story point matrix, and Gherkin BDD scenarios | [📄 `docs/acceptance-criteria.md`](./docs/acceptance-criteria.md) |
 | **Database Design Specification** | 3NF relational schema, ER diagrams, data dictionary, matching math, and SQL DDL scripts | [📄 `docs/database-design.md`](./docs/database-design.md) |
-| **App Concept & Ideation** | Design thinking notes (Empathize, Define, Ideate, MVP Features) | [📄 `docs/App.md`](./docs/App.md) |
 
 ---
 
