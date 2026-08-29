@@ -1,6 +1,6 @@
 # User Stories & Acceptance Criteria
 
-## NutriDine Platform
+## RoomSync Platform (Behavior-Based Roommate Matching Web App)
 **Document Version:** 1.0.0  
 **Course:** 192-304 Agile Software Development  
 **Methodology:** Agile / Scrum with Behavior-Driven Development (BDD)  
@@ -12,20 +12,20 @@
 
 ### 1.1 Definition of Ready (DoR)
 A User Story is considered **Ready for Sprint Backlog** when:
-- [x] Written in standard Agile format: *"As a [User], I want [Feature], so that [Benefit]"*.
-- [x] Clear Acceptance Criteria defined in BDD *Given-When-Then* structure.
-- [x] Estimated in Story Points using Planning Poker (Fibonacci scale: 1, 2, 3, 5, 8, 13).
-- [x] All external dependencies identified and available.
-- [x] UI mockups or user flow wireframes provided.
+- [x] Written in standard user story syntax: *"As a [User Persona], I want [Feature / Action], so that [Benefit / Value]"*.
+- [x] Acceptance criteria explicitly specified in Gherkin *Given-When-Then* structure.
+- [x] Story points estimated using Planning Poker (Fibonacci scale: 1, 2, 3, 5, 8, 13).
+- [x] Technical dependencies and database table prerequisites identified.
+- [x] UI/UX flow or wireframe layout defined.
 
 ### 1.2 Definition of Done (DoD)
 A User Story is considered **Done** and ready for Sprint Review when:
-- [x] All Acceptance Criteria have passed verification.
-- [x] Unit and Integration tests written and achieving $\ge 80\%$ code coverage.
-- [x] Code peer-reviewed and merged into the main branch via Pull Request.
-- [x] No high-severity static analysis or linting errors.
-- [x] Responsive on desktop (1920x1080) and mobile (375x667) screen viewports.
-- [x] Deployed and verifiable in the staging/demo environment.
+- [x] All defined Acceptance Criteria pass automated or manual verification.
+- [x] Unit and integration tests written and passing with $\ge 80\%$ code coverage.
+- [x] Code passes linting and static analysis without critical errors.
+- [x] Peer code review completed and approved in GitHub Pull Request.
+- [x] UI responsive across mobile (375px) and desktop (1440px) viewports.
+- [x] Deployed and verified on the staging/demo deployment environment.
 
 ---
 
@@ -33,154 +33,180 @@ A User Story is considered **Done** and ready for Sprint Review when:
 
 ```mermaid
 gantt
-    title NutriDine User Story Delivery by Sprint
+    title RoomSync User Story Delivery by Sprint
     dateFormat  YYYY-MM-DD
-    section Sprint 1
-    US-01 User Registration & Health Setup   :done, s1_1, 2026-09-01, 7d
-    US-02 User Authentication & JWT Session  :done, s1_2, after s1_1, 7d
-    section Sprint 2
-    US-03 Search Restaurants by Health Score :active, s2_1, 2026-09-15, 7d
-    US-04 Browse Calorie & Macro Menu Items  :s2_2, after s2_1, 7d
-    section Sprint 3
-    US-05 Real Photo Review Submission       :s3_1, 2026-09-29, 7d
-    US-06 Direct Call & Order Flow          :s3_2, after s3_1, 7d
-    section Sprint 4
-    US-07 Merchant Menu Management           :s4_1, 2026-10-13, 7d
-    US-08 Admin Review & Moderation Panel    :s4_2, after s4_1, 7d
+    section Sprint 1: Auth & Quiz
+    US-01 User Registration & Profile Setup       :done, s1_1, 2026-09-01, 7d
+    US-02 2-Minute Habit & Lifestyle Quiz         :done, s1_2, after s1_1, 7d
+    section Sprint 2: Matching & Directory
+    US-03 Compatibility Match Score & Habit Tags  :active, s2_1, 2026-09-15, 7d
+    US-04 Filter Roommate Directory               :s2_2, after s2_1, 7d
+    section Sprint 3: Chat & Listings
+    US-05 1-on-1 Direct Chat & Inquiries          :s3_1, 2026-09-29, 7d
+    US-06 Room & Roommate Listing Management      :s3_2, after s3_1, 7d
+    section Sprint 4: Safety & Polish
+    US-07 Deal-Breaker Conflict Warning           :s4_1, 2026-10-13, 7d
+    US-08 Safety Block, Report & Privacy Controls :s4_2, after s4_1, 7d
 ```
 
 | Story ID | User Story Title | Priority | Story Points | Sprint |
 | :--- | :--- | :---: | :---: | :---: |
-| **US-01** | User Registration & Health Profile Setup | Must | 5 | Sprint 1 |
-| **US-02** | User Login & JWT Session Management | Must | 3 | Sprint 1 |
-| **US-03** | Search Nearby Restaurants by Health Score | Must | 5 | Sprint 2 |
-| **US-04** | Nutritional Menu Catalog & Calorie Breakdown | Must | 5 | Sprint 2 |
-| **US-05** | Community Rating & Photo Upload Review | Should | 8 | Sprint 3 |
-| **US-06** | Direct Call / Order Inquiry Generation | Must | 3 | Sprint 3 |
-| **US-07** | Merchant Menu Management (CRUD) | Should | 5 | Sprint 4 |
-| **US-08** | Admin Content Moderation & Verification | Could | 3 | Sprint 4 |
+| **US-01** | User Registration & Profile Creation | Must Have | 3 | Sprint 1 |
+| **US-02** | 2-Minute Habit & Lifestyle Assessment Quiz | Must Have | 5 | Sprint 1 |
+| **US-03** | Behavioral Compatibility Score & Tag Breakdown | Must Have | 5 | Sprint 2 |
+| **US-04** | Filtered Roommate Directory by Budget & Match % | Must Have | 5 | Sprint 2 |
+| **US-05** | 1-on-1 Direct Messaging & Inquiry Chat | Must Have | 8 | Sprint 3 |
+| **US-06** | Create and Manage Room Postings ("Have" / "Need") | Should Have | 5 | Sprint 3 |
+| **US-07** | Deal-Breaker Detection & Conflict Alerting | Should Have | 3 | Sprint 4 |
+| **US-08** | Profile Safety, User Block & Reporting System | Must Have | 3 | Sprint 4 |
 
 ---
 
-## 3. Detailed User Stories & Acceptance Criteria (Gherkin Format)
+## 3. Detailed User Stories & Acceptance Criteria (Gherkin BDD Format)
 
-### US-01: User Registration & Health Profile Setup
-**As a** health-conscious consumer,  
-**I want to** create an account with my dietary preferences and daily calorie target,  
-**So that** the application can highlight meals tailored to my fitness goals.
+### US-01: User Registration & Profile Creation
+**As a** student or renter looking for housing,  
+**I want to** create a secure account with my basic bio, budget range, and preferred move-in area,  
+**So that** I can build my identity on the platform and begin searching for compatible roommates.
 
-* **Scenario 1: Successful Registration with Valid Data**
-  * **Given** I am an unregistered visitor on the registration page,
-  * **When** I fill in valid fields (Name: "Sarah Connor", Email: "sarah@example.com", Password: "SecurePassword123!", Calorie Target: 1800),
-  * **And** I click the "Create Account" button,
-  * **Then** my account is saved to the database with a hashed password,
-  * **And** I receive a success notification and an automated redirection to the Dashboard.
+* **Scenario 1: Successful User Registration**
+  * **Given** I am a new visitor on the registration page,
+  * **When** I enter a valid email (`alex.student@example.com`), password (`SecurePass2026!`), full name (`Alex Chen`), and preferred move-in district (`Downtown Campus`),
+  * **And** I click "Register Account",
+  * **Then** my account is saved to the database with a salted hashed password,
+  * **And** a valid JWT token is returned, redirecting me to the 2-Minute Habit Quiz onboarding.
 
-* **Scenario 2: Registration Fails with Duplicate Email**
-  * **Given** an existing user exists with email `"sarah@example.com"`,
-  * **When** a new registration is submitted with `"sarah@example.com"`,
-  * **Then** the registration is rejected with status `409 Conflict`,
-  * **And** the UI displays an error: *"An account with this email address already exists."*
+* **Scenario 2: Duplicate Email Rejection**
+  * **Given** a registered user already exists with email `alex.student@example.com`,
+  * **When** a new user attempts registration with the same email,
+  * **Then** the system returns HTTP `409 Conflict`,
+  * **And** the UI displays an error message: *"An account with this email address already exists. Please log in."*
 
 ---
 
-### US-02: User Login & JWT Session Management
+### US-02: 2-Minute Habit & Lifestyle Assessment Quiz
 **As a** registered user,  
-**I want to** log in securely using my email and password,  
-**So that** I can access my personalized calorie dashboard and submit reviews.
+**I want to** complete an intuitive 5-question lifestyle questionnaire,  
+**So that** the platform understands my daily routines, sleep habits, cleanliness expectations, and guest rules.
 
-* **Scenario 1: Valid Login Credentials**
-  * **Given** I am on the login screen with valid registered credentials,
-  * **When** I submit my registered email and matching password,
-  * **Then** the backend returns an HTTP `200 OK` with a valid JWT access token,
-  * **And** my profile avatar and customized calorie budget display in the top navigation bar.
+* **Scenario 1: Complete and Save Lifestyle Assessment**
+  * **Given** I am an authenticated user taking the Habit Quiz,
+  * **When** I select my sleep cycle (*"Night Owl - Sleep after 1:00 AM"*), cleanliness rating (*"4 - Tidy & clean daily"*), guest policy (*"Occasional weekend guests only"*), noise level (*"Moderate / Study friendly"*), smoking (*"Non-smoker"*), and pets (*"Pet friendly"*),
+  * **And** I click "Complete & Find Matches",
+  * **Then** my habit vector is saved to the database,
+  * **And** my profile status changes to `"Quiz Completed"`, unlocking the roommate directory.
 
-* **Scenario 2: Invalid Password Entry**
-  * **Given** I am on the login screen,
-  * **When** I enter a valid email but an incorrect password,
-  * **Then** the backend returns an HTTP `401 Unauthorized`,
-  * **And** the UI displays: *"Invalid email or password. Please try again."*
-
----
-
-### US-03: Search Restaurants by Distance & Healthy Score
-**As a** hungry diner,  
-**I want to** discover nearby restaurants filtered by distance and obesity-friendly/health ratings,  
-**So that** I can find nourishing food options within walking or short driving distance.
-
-* **Scenario 1: Filter Restaurants by Maximum Distance and Minimum Health Score**
-  * **Given** I enable location permissions on the Discovery page,
-  * **When** I set the distance filter to $\le 5\text{ km}$ and health score $\ge 4.0\text{ stars}$,
-  * **Then** the restaurant list updates in $< 300\text{ ms}$ showing only matching restaurants,
-  * **And** each restaurant card displays its distance (e.g. "1.2 km"), health star badge, and average calorie rating.
-
-* **Scenario 2: No Restaurants Found in Filter Criteria**
-  * **Given** no restaurants exist within 1 km having a 5.0-star rating,
-  * **When** I apply the filter $\le 1\text{ km}$ and $\text{score} = 5.0$,
-  * **Then** the system displays a friendly empty state: *"No healthy spots found in this immediate radius. Try expanding your search distance."*
+* **Scenario 2: Incomplete Quiz Submission Validation**
+  * **Given** I am on question 3 of the habit assessment,
+  * **When** I try to skip mandatory questions without selecting an option,
+  * **Then** the UI disables the "Next / Finish" button and highlights unselected items with: *"Please choose an option to continue."*
 
 ---
 
-### US-04: View Restaurant Menu with Calorie & Macro Breakdown
-**As a** diner monitoring my macronutrients,  
-**I want to** view a restaurant’s menu with itemized calories, protein, carbs, and fats,  
-**So that** I can pick dishes that fit my remaining daily caloric budget.
+### US-03: Behavioral Compatibility Match Score & Habit Tag Highlights
+**As a** prospective renter browsing candidate profiles,  
+**I want to** see an overall compatibility percentage score and aligned habit tags,  
+**So that** I can immediately identify whether our day-to-day living habits match before messaging.
 
-* **Scenario 1: Menu Item Detailed Display**
-  * **Given** I select "Green Garden Bistro" from the restaurant list,
-  * **When** the menu view loads,
-  * **Then** each dish card lists its price, calorie count (e.g. "420 kcal"), and macro split (Protein: 35g, Carbs: 25g, Fat: 8g),
-  * **And** dishes under 500 kcal display a green "Low Calorie" badge.
+* **Scenario 1: High Compatibility Display ($\ge 80\%$)**
+  * **Given** my habit profile is configured as a Night Owl with Cleanliness Level 4,
+  * **When** I view candidate profile "Jordan Lee" whose habits are also Night Owl and Cleanliness Level 4,
+  * **Then** the profile displays an overall match badge with a green score $\ge 85\%$,
+  * **And** highlights positive habit chips: `[Both Night Owls]`, `[Aligned Cleaning Standards]`, `[Similar Guest Rules]`.
 
-* **Scenario 2: Daily Budget Highlight**
-  * **Given** I am logged in with 600 kcal remaining in my daily budget,
-  * **When** viewing the menu,
-  * **Then** dishes with $\le 600\text{ kcal}$ display an indicator: *"Fits your remaining budget"*.
-
----
-
-### US-05: Real Photo Review & Rating Submission
-**As a** customer who ordered food,  
-**I want to** submit a star rating, honest comment, and real photo of the delivered dish,  
-**So that** the community can verify the actual quality and appearance of the meal.
-
-* **Scenario 1: Successful Review with Photo Upload**
-  * **Given** I am an authenticated user on the restaurant details page,
-  * **When** I choose a 5-star rating, enter a text review $\ge 10$ characters, and upload a valid `.jpg/.png` image ($\le 5\text{ MB}$),
-  * **And** click "Submit Review",
-  * **Then** the image is uploaded to cloud storage,
-  * **And** my review is appended to the review feed immediately with my name and timestamp.
-
-* **Scenario 2: Photo Exceeds Maximum File Size Limit**
-  * **Given** I attempt to upload a photo file of size $12\text{ MB}$,
-  * **When** I attach the file,
-  * **Then** the client displays a validation error: *"File size exceeds 5MB limit. Please choose a smaller photo."*,
-  * **And** the submission is blocked before upload.
+* **Scenario 2: Low Compatibility Display ($< 50\%$)**
+  * **Given** my profile is set to Early Riser (5:30 AM wake) and Quiet Sanctuary (Level 1 noise),
+  * **When** I view a candidate who is a Late-Night Gamer (3:00 AM sleep) with High Social Party tolerance (Level 3),
+  * **Then** the compatibility engine displays a lower score (e.g. $42\%$) with amber/slate tags indicating schedule disparity: `[Divergent Sleep Hours]`, `[Opposing Noise Tolerance]`.
 
 ---
 
-### US-06: Direct Contact / Call to Order Food
-**As a** customer ready to place an order,  
-**I want to** click a single button to initiate a phone call with the restaurant,  
-**So that** I can place my order quickly without navigating complex checkout steps.
+### US-04: Filter Roommate Directory by Budget, Location, and Min Compatibility %
+**As a** room seeker with a strict budget,  
+**I want to** filter candidate profiles by maximum rent budget, location, and minimum match score ($\ge 80\%$),  
+**So that** I only spend time evaluating candidates who meet both my financial and lifestyle criteria.
 
-* **Scenario 1: Triggering Click-to-Call on Mobile**
-  * **Given** I am on a mobile device viewing "Yoshinoya Healthy Bowls",
-  * **When** I tap the "Call Restaurant" button,
-  * **Then** the device dialer opens populated with the restaurant's validated phone number (e.g. `tel:0234839948`).
+* **Scenario 1: Applying Multi-Criteria Search Filters**
+  * **Given** I am on the Roommate Discovery directory,
+  * **When** I set Location filter to `"University West"`, Budget to `"Max $700/mo"`, and Minimum Match to `"80%+"`,
+  * **Then** the directory updates within $< 200\text{ ms}$, displaying only candidates matching all three conditions,
+  * **And** displays the count of matching candidates (e.g., *"14 Compatible Roommates Found"*).
 
-* **Scenario 2: Desktop Interaction**
-  * **Given** I am on a desktop browser,
-  * **When** I hover or click on the "Call Restaurant" button,
-  * **Then** a modal opens displaying the full phone number with a "Copy to Clipboard" shortcut and QR code.
+* **Scenario 2: No Matching Candidates in Strict Radius**
+  * **Given** no candidates meet the filter criteria of $95\%$ match and $\le \$300\text{ budget}$,
+  * **When** the search query executes,
+  * **Then** the page displays a helpful empty state: *"No roommates match all strict criteria. Try expanding your budget range or lowering the match threshold."*
+
+---
+
+### US-05: 1-on-1 Direct Messaging & Inquiry Chat
+**As a** matched roommate candidate,  
+**I want to** send private direct messages to another user within the application,  
+**So that** we can discuss room availability, agree on house rules, and schedule an apartment walkthrough.
+
+* **Scenario 1: Sending and Receiving a Message**
+  * **Given** I am on candidate "Maya's" profile with an $88\%$ match,
+  * **When** I click "Message Roommate" and send *"Hi Maya, noticed we both keep early morning routines. Is your 2BR spot still open?"*,
+  * **Then** a conversation record is created,
+  * **And** the message appears immediately in the chat thread with a timestamp and `"Delivered"` status.
+
+* **Scenario 2: Real-time Message Notification**
+  * **Given** user Maya is logged into the application on another device,
+  * **When** Alex sends a direct message,
+  * **Then** Maya's navigation bar displays an unread message badge indicator in $< 500\text{ ms}$.
+
+---
+
+### US-06: Room & Roommate Listing Management
+**As a** tenant with an open bedroom,  
+**I want to** create a room listing with rent price, photos, amenities, and move-in date,  
+**So that** seekers can view both the physical space and my behavioral profile together.
+
+* **Scenario 1: Creating a Room Listing**
+  * **Given** I am an authenticated user who selected housing status `"Has a Room"`,
+  * **When** I input room title (*"Private Room near Metro"*), monthly rent (*$650*), deposit (*$650*), available date (*"2026-10-01"*), and upload 2 photos,
+  * **And** click "Publish Listing",
+  * **Then** the room listing is published to the directory, linked directly to my verified habit profile.
+
+---
+
+### US-07: Deal-Breaker Detection & Conflict Alerting
+**As a** non-smoker with pet allergies,  
+**I want to** be warned if a candidate has conflicting non-negotiable living habits,  
+**So that** I avoid awkward conversations and dangerous living situations.
+
+* **Scenario 1: Deal-Breaker Warning Flagging**
+  * **Given** my profile specifies `"Strict Non-Smoker"` and `"No Pets (Allergic)"`,
+  * **When** I view a profile of a user who marked `"Indoor Smoker"` or `"Has 2 Cats"`,
+  * **Then** the profile header shows a prominent warning badge: `⚠️ Conflicting House Rules: Smoking / Pets`,
+  * **And** the overall match score is adjusted with a penalty to reflect the hard deal-breaker.
+
+---
+
+### US-08: Safety Block, Report & Privacy Controls
+**As a** privacy-conscious user,  
+**I want to** block or report any user who sends inappropriate messages or misrepresents their identity,  
+**So that** my personal safety and privacy remain protected on the platform.
+
+* **Scenario 1: Blocking a User**
+  * **Given** I am in a direct chat with an abusive user,
+  * **When** I click "Block User" and confirm the modal prompt,
+  * **Then** the conversation is hidden,
+  * **And** the blocked user cannot view my profile or send further messages.
+
+* **Scenario 2: Submitting a Safety Report**
+  * **Given** I encounter a suspicious or scam profile,
+  * **When** I click "Report Profile", select reason `"Spam / False Information"`, and submit evidence text,
+  * **Then** a report record is logged in the database for administrator review with status `Pending`.
 
 ---
 
 ## 4. Edge Cases & Error Handling Criteria
 
-| Scenario ID | Edge Case | Expected System Handling |
+| Case ID | Scenario / Edge Case | Expected System Behavior |
 | :--- | :--- | :--- |
-| **EC-01** | Geolocation permission denied by browser | Fallback to default city center (Bangkok Downtown) with an interactive location search bar. |
-| **EC-02** | User session token expired during review submission | Save review text draft in `localStorage`, prompt user to re-authenticate, and auto-submit upon successful login. |
-| **EC-03** | Special character injection in search field | Sanitize input against XSS and SQL injection attacks; perform parameterized search queries. |
-
+| **EC-01** | User attempts to browse roommate directory before completing the Habit Quiz | Redirect user with a banner: *"Please complete your 2-minute lifestyle quiz first so we can calculate your compatibility scores!"* |
+| **EC-02** | User enters invalid budget boundaries ($\text{Min} > \text{Max}$) | Disable submit button and render field validation: *"Minimum budget cannot exceed maximum budget."* |
+| **EC-03** | Network disconnect occurs while submitting habit assessment | Cache answers locally in `sessionStorage`; auto-retry upon reconnection without losing user inputs. |
+| **EC-04** | Chat message exceeds maximum character length ($1,000$ characters) | Enforce client-side character counter and reject oversized payloads on the backend API with HTTP `422`. |
+| **EC-05** | Image upload exceeds 5MB or contains unapproved file extensions | Display error message: *"Please upload JPEG or PNG images under 5MB."* |

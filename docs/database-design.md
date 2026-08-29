@@ -1,6 +1,6 @@
 # Database Design Specification
 
-## NutriDine Platform
+## RoomSync Platform (Behavior-Based Roommate Matching Web App)
 **Document Version:** 1.0.0  
 **Course:** 192-304 Agile Software Development  
 **Target RDBMS:** PostgreSQL 16+ / SQLite 3.35+  
@@ -8,15 +8,16 @@
 
 ---
 
-## 1. Database Overview & Design Principles
+## 1. Database Overview & Architectural Principles
 
-The NutriDine database is designed following Relational Database Management System (RDBMS) 3NF (Third Normal Form) principles, balancing normalization with query performance for high-throughput restaurant discovery, menu calorie filtering, and photo review feeds.
+The RoomSync relational database is structured according to **Third Normal Form (3NF)** principles to ensure optimal data consistency, referential integrity, and sub-millisecond query execution for compatibility calculations, lifestyle filtering, and direct messaging threads.
 
-### Key Architectural Decisions:
-- **Primary Keys:** UUIDv4 / Auto-incrementing BigInt identifiers for security and distributed scalability.
-- **Geospatial Support:** Floating-point coordinates (`latitude`, `longitude`) with indexed bounding box search support.
-- **Nutritional Integrity:** Strict `CHECK` constraints on calorie counts and macro distributions ($calories \ge 0$, $rating \in [1, 5]$).
-- **Soft Deletion & Timestamps:** `created_at` and `updated_at` timestamps across all major entities.
+### Key Design Principles:
+1. **Normalized Lifestyle Vectors:** User behavioral habits are decoupled into dedicated attribute columns with discrete enumerated scale constraints to enable rapid mathematical vector distance comparisons.
+2. **Deterministic Primary Keys:** Standardized UUID / String identifiers prevent key enumeration and facilitate distributed data sharding.
+3. **Data Security & Anonymity:** Strict separation between private user authentication credentials and public profile / lifestyle habit cards.
+4. **Relational Constraints & Integrity:** Cascading foreign keys for child entities (messages, listings, quiz records) and `CHECK` constraints on all habit score ranges ($1 \le \text{value} \le 5$).
+5. **Comprehensive Indexing:** B-Tree and composite indexing across foreign keys, location districts, budget ranges, and conversation timestamps.
 
 ---
 
@@ -24,98 +25,105 @@ The NutriDine database is designed following Relational Database Management Syst
 
 ```mermaid
 erDiagram
-    USERS ||--o{ REVIEWS : writes
-    USERS ||--o{ RESTAURANTS : owns
-    USERS ||--o{ ORDER_INQUIRIES : initiates
-    RESTAURANTS ||--o{ MENU_ITEMS : contains
-    RESTAURANTS ||--o{ REVIEWS : receives
-    RESTAURANTS ||--o{ ORDER_INQUIRIES : receives
-    CATEGORIES ||--o{ RESTAURANT_CATEGORIES : classifies
-    RESTAURANTS ||--o{ RESTAURANT_CATEGORIES : tagged_with
-    ORDER_INQUIRIES ||--o{ INQUIRY_ITEMS : contains
-    MENU_ITEMS ||--o{ INQUIRY_ITEMS : ordered_as
+    USERS ||--|| USER_PROFILES : has
+    USERS ||--|| HABIT_PROFILES : completes
+    USERS ||--o{ ROOM_LISTINGS : posts
+    ROOM_LISTINGS ||--o{ LISTING_IMAGES : contains
+    USERS ||--o{ CONVERSATION_PARTICIPANTS : joins
+    CONVERSATIONS ||--o{ CONVERSATION_PARTICIPANTS : includes
+    CONVERSATIONS ||--o{ MESSAGES : contains
+    USERS ||--o{ MESSAGES : sends
+    USERS ||--o{ USER_SAFETY_REPORTS : initiates
 
     USERS {
         uuid id PK
         string email UK
         string password_hash
         string full_name
-        string role
-        int daily_calorie_target
+        boolean is_active
         timestamp created_at
         timestamp updated_at
     }
 
-    RESTAURANTS {
+    USER_PROFILES {
+        uuid user_id PK,FK
+        string avatar_url
+        string gender
+        string occupation
+        string bio
+        decimal budget_min
+        decimal budget_max
+        string preferred_location
+        date target_move_in
+        string housing_status
+        boolean quiz_completed
+        timestamp updated_at
+    }
+
+    HABIT_PROFILES {
+        uuid user_id PK,FK
+        smallint sleep_schedule
+        smallint cleanliness_level
+        smallint guest_frequency
+        smallint noise_tolerance
+        smallint smoking_policy
+        smallint pet_policy
+        smallint work_mode
+        timestamp completed_at
+        timestamp updated_at
+    }
+
+    ROOM_LISTINGS {
         uuid id PK
-        uuid owner_id FK
-        string name
-        string description
+        uuid host_user_id FK
+        string title
+        text description
+        decimal monthly_rent
+        decimal deposit_amount
+        string city_district
         string address
-        float latitude
-        float longitude
-        string phone_number
-        float health_rating
-        int price_tier
-        boolean is_verified
-        timestamp created_at
-    }
-
-    CATEGORIES {
-        uuid id PK
-        string name UK
-        string slug UK
-        string icon_url
-    }
-
-    RESTAURANT_CATEGORIES {
-        uuid restaurant_id PK,FK
-        uuid category_id PK,FK
-    }
-
-    MENU_ITEMS {
-        uuid id PK
-        uuid restaurant_id FK
-        string name
-        string description
-        decimal price
-        int calories
-        decimal protein_g
-        decimal carbs_g
-        decimal fat_g
-        string image_url
+        date available_from
         boolean is_available
         timestamp created_at
     }
 
-    REVIEWS {
+    LISTING_IMAGES {
         uuid id PK
-        uuid user_id FK
-        uuid restaurant_id FK
-        int rating
-        string comment
-        string photo_url
-        int fat_score_rating
+        uuid listing_id FK
+        string image_url
+        boolean is_primary
         timestamp created_at
     }
 
-    ORDER_INQUIRIES {
+    CONVERSATIONS {
         uuid id PK
-        uuid user_id FK
-        uuid restaurant_id FK
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    CONVERSATION_PARTICIPANTS {
+        uuid conversation_id PK,FK
+        uuid user_id PK,FK
+        timestamp last_read_at
+    }
+
+    MESSAGES {
+        uuid id PK
+        uuid conversation_id FK
+        uuid sender_id FK
+        text content
+        boolean is_read
+        timestamp created_at
+    }
+
+    USER_SAFETY_REPORTS {
+        uuid id PK
+        uuid reporter_id FK
+        uuid reported_user_id FK
+        string report_type
+        text reason_details
         string status
-        int total_calories
-        decimal estimated_price
-        string notes
         timestamp created_at
-    }
-
-    INQUIRY_ITEMS {
-        uuid id PK
-        uuid inquiry_id FK
-        uuid menu_item_id FK
-        int quantity
-        int item_calories
     }
 ```
 
@@ -124,239 +132,314 @@ erDiagram
 ## 3. Data Dictionary & Table Definitions
 
 ### 3.1 Table: `users`
-Stores user profile information, authentication credentials, and personalized daily calorie goals.
+Manages core login credentials, account status, and registration metadata.
 
 | Column | Data Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
-| `id` | `UUID` / `BIGINT` | `PRIMARY KEY` | Unique identifier for user |
-| `email` | `VARCHAR(255)` | `NOT NULL`, `UNIQUE` | User email address for authentication |
-| `password_hash` | `VARCHAR(255)` | `NOT NULL` | Bcrypt/Argon2 hashed password |
-| `full_name` | `VARCHAR(100)` | `NOT NULL` | Display name of the user |
-| `role` | `VARCHAR(20)` | `NOT NULL`, `DEFAULT 'customer'` | `customer`, `merchant`, `admin` |
-| `daily_calorie_target` | `INTEGER` | `DEFAULT 2000`, `CHECK(target > 500)` | Target daily intake in kcal |
-| `created_at` | `TIMESTAMP WITH TIME ZONE`| `DEFAULT CURRENT_TIMESTAMP` | Account registration timestamp |
-| `updated_at` | `TIMESTAMP WITH TIME ZONE`| `DEFAULT CURRENT_TIMESTAMP` | Profile update timestamp |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | Unique identifier (UUIDv4) |
+| `email` | `VARCHAR(255)` | `NOT NULL`, `UNIQUE` | User email address for login |
+| `password_hash` | `VARCHAR(255)` | `NOT NULL` | Bcrypt/Argon2 password hash |
+| `full_name` | `VARCHAR(120)` | `NOT NULL` | User's full display name |
+| `is_active` | `BOOLEAN` | `DEFAULT TRUE` | Account activation flag |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Account creation timestamp |
+| `updated_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Last profile update timestamp |
 
 ---
 
-### 3.2 Table: `restaurants`
-Contains merchant profile, location coordinates, contact details, and aggregated healthy scores.
+### 3.2 Table: `user_profiles`
+Contains demographic details, search preferences, budget boundaries, and housing intent.
 
 | Column | Data Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
-| `id` | `UUID` / `BIGINT` | `PRIMARY KEY` | Unique restaurant ID |
-| `owner_id` | `UUID` / `BIGINT` | `REFERENCES users(id)` | Associated merchant user ID |
-| `name` | `VARCHAR(150)` | `NOT NULL` | Restaurant trading name |
-| `description` | `TEXT` | `NULL` | Bio, health philosophy, cuisine details |
-| `address` | `VARCHAR(255)` | `NOT NULL` | Physical street address |
-| `latitude` | `DECIMAL(10, 7)` | `NOT NULL` | Geolocation latitude coordinate |
-| `longitude` | `DECIMAL(10, 7)` | `NOT NULL` | Geolocation longitude coordinate |
-| `phone_number` | `VARCHAR(20)` | `NOT NULL` | Direct phone number for orders |
-| `health_rating` | `DECIMAL(3, 2)` | `DEFAULT 5.00`, `CHECK(rating >= 1 AND rating <= 5)` | 1.0 to 5.0 score |
-| `price_tier` | `SMALLINT` | `DEFAULT 1`, `CHECK(price_tier BETWEEN 1 AND 4)` | $ to $$$$ indicators |
-| `is_verified` | `BOOLEAN` | `DEFAULT FALSE` | True if verified by platform admin |
-| `created_at` | `TIMESTAMP WITH TIME ZONE`| `DEFAULT CURRENT_TIMESTAMP` | Record creation timestamp |
+| `user_id` | `VARCHAR(36)` | `PRIMARY KEY`, `REFERENCES users(id) ON DELETE CASCADE` | Associated user ID |
+| `avatar_url` | `VARCHAR(500)` | `NULL` | Profile picture URL link |
+| `gender` | `VARCHAR(30)` | `NULL` | Self-identified gender |
+| `occupation` | `VARCHAR(100)` | `NULL` | Student / University / Job title |
+| `bio` | `TEXT` | `NULL` | Short personal introduction |
+| `budget_min` | `DECIMAL(10, 2)` | `DEFAULT 0.00`, `CHECK(budget_min >= 0)` | Minimum monthly rent budget |
+| `budget_max` | `DECIMAL(10, 2)` | `NOT NULL`, `CHECK(budget_max >= budget_min)`| Maximum monthly rent budget |
+| `preferred_location` | `VARCHAR(150)` | `NOT NULL` | Target university / neighborhood district |
+| `target_move_in` | `DATE` | `NULL` | Expected lease start date |
+| `housing_status` | `VARCHAR(20)` | `DEFAULT 'needs_room'`, `CHECK(housing_status IN ('needs_room', 'has_room', 'flexible'))` | Housing search state |
+| `quiz_completed` | `BOOLEAN` | `DEFAULT FALSE` | True if lifestyle quiz is submitted |
+| `updated_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Timestamp |
 
 ---
 
-### 3.3 Table: `categories` & `restaurant_categories`
-Supports multi-tag filtering (e.g. "Low Calorie", "Keto", "High Protein", "Salads", "Clean Eating").
+### 3.3 Table: `habit_profiles`
+Captures normalized lifestyle parameters from the 2-Minute Habit Assessment for compatibility calculation.
+
+| Column | Data Type | Scale & Allowed Values | Description |
+| :--- | :--- | :--- | :--- |
+| `user_id` | `VARCHAR(36)` | `PRIMARY KEY`, `REFERENCES users(id) ON DELETE CASCADE` | Associated user ID |
+| `sleep_schedule` | `SMALLINT` | `1 = Early Riser (wake <= 7AM)`<br>`2 = Moderate (sleep 11PM-12AM)`<br>`3 = Night Owl (sleep >= 1AM)` | Daily sleeping and waking cycle |
+| `cleanliness_level` | `SMALLINT` | `1 (Casual/Relaxed) to 5 (Spotless daily)` | Standard for chores and cleanliness |
+| `guest_frequency` | `SMALLINT` | `1 = Rarely/Never`<br>`2 = Occasional weekends`<br>`3 = Frequent / Open door` | Overnight guest and visitor policy |
+| `noise_tolerance` | `SMALLINT` | `1 = Quiet sanctuary`<br>`2 = Moderate / Headphones`<br>`3 = Social / Lively` | Sound and party tolerance level |
+| `smoking_policy` | `SMALLINT` | `1 = Non-smoker only (Strict)`<br>`2 = Outdoor smoker`<br>`3 = Smoker friendly` | Smoking preferences and tolerance |
+| `pet_policy` | `SMALLINT` | `1 = No pets / Allergy`<br>`2 = Cat friendly`<br>`3 = Dog friendly`<br>`4 = All pets welcome` | Pet tolerance and ownership |
+| `work_mode` | `SMALLINT` | `1 = In-office/Campus daily`<br>`2 = Hybrid`<br>`3 = Full-time WFH` | Remote work / study routine |
+| `completed_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Initial completion timestamp |
+| `updated_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Last updated timestamp |
+
+---
+
+### 3.4 Table: `room_listings` & `listing_images`
+Supports users who have a vacant room and are searching for a compatible tenant.
 
 | Column | Data Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
-| `id` | `UUID` / `BIGINT` | `PRIMARY KEY` | Category identifier |
-| `name` | `VARCHAR(50)` | `NOT NULL`, `UNIQUE` | Category display title |
-| `slug` | `VARCHAR(50)` | `NOT NULL`, `UNIQUE` | URL-safe slug |
-| `icon_url` | `VARCHAR(255)` | `NULL` | Badge icon asset link |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | Unique room listing ID |
+| `host_user_id` | `VARCHAR(36)` | `NOT NULL`, `REFERENCES users(id) ON DELETE CASCADE` | Room poster user ID |
+| `title` | `VARCHAR(150)` | `NOT NULL` | Headline for room post |
+| `description` | `TEXT` | `NOT NULL` | Details on apartment, rules, amenities |
+| `monthly_rent` | `DECIMAL(10, 2)` | `NOT NULL`, `CHECK(monthly_rent > 0)` | Monthly rent in local currency |
+| `deposit_amount` | `DECIMAL(10, 2)` | `DEFAULT 0.00`, `CHECK(deposit_amount >= 0)` | Security deposit requirement |
+| `city_district` | `VARCHAR(100)` | `NOT NULL` | Neighborhood / Sub-district |
+| `address` | `VARCHAR(255)` | `NOT NULL` | Approximate street / condo name |
+| `available_from` | `DATE` | `NOT NULL` | Date room becomes vacant |
+| `is_available` | `BOOLEAN` | `DEFAULT TRUE` | Active listing status |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Post creation timestamp |
 
 ---
 
-### 3.4 Table: `menu_items`
-Lists individual dishes with complete calorie counts and macronutrient breakdowns.
+### 3.5 Table: `conversations`, `conversation_participants`, and `messages`
+Power the in-app direct messaging system.
+
+| Table | Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `conversations` | `id` | `VARCHAR(36)` | `PRIMARY KEY` | Unique thread ID |
+| `conversations` | `updated_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Latest message timestamp |
+| `conversation_participants` | `conversation_id` | `VARCHAR(36)` | `REFERENCES conversations(id) ON DELETE CASCADE` | Thread ID |
+| `conversation_participants` | `user_id` | `VARCHAR(36)` | `REFERENCES users(id) ON DELETE CASCADE` | Participant ID |
+| `conversation_participants` | `last_read_at` | `TIMESTAMP` | `NULL` | Read-receipt tracker |
+| `messages` | `id` | `VARCHAR(36)` | `PRIMARY KEY` | Message ID |
+| `messages` | `conversation_id` | `VARCHAR(36)` | `NOT NULL`, `REFERENCES conversations(id) ON DELETE CASCADE` | Parent conversation |
+| `messages` | `sender_id` | `VARCHAR(36)` | `NOT NULL`, `REFERENCES users(id)` | Author of message |
+| `messages` | `content` | `TEXT` | `NOT NULL` | Message body text |
+| `messages` | `is_read` | `BOOLEAN` | `DEFAULT FALSE` | Read status |
+| `messages` | `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Dispatch timestamp |
+
+---
+
+### 3.6 Table: `user_safety_reports`
+Enables users to block and report fraudulent or harassing accounts.
 
 | Column | Data Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
-| `id` | `UUID` / `BIGINT` | `PRIMARY KEY` | Unique dish ID |
-| `restaurant_id` | `UUID` / `BIGINT` | `NOT NULL`, `REFERENCES restaurants(id) ON DELETE CASCADE` | Parent restaurant |
-| `name` | `VARCHAR(120)` | `NOT NULL` | Dish name |
-| `description` | `TEXT` | `NULL` | Ingredients and allergen notes |
-| `price` | `DECIMAL(10, 2)` | `NOT NULL`, `CHECK(price >= 0)` | Price in local currency (THB) |
-| `calories` | `INTEGER` | `NOT NULL`, `CHECK(calories >= 0)` | Total energy content in kcal |
-| `protein_g` | `DECIMAL(5, 1)` | `DEFAULT 0.0`, `CHECK(protein_g >= 0)`| Protein content in grams |
-| `carbs_g` | `DECIMAL(5, 1)` | `DEFAULT 0.0`, `CHECK(carbs_g >= 0)` | Carbohydrates content in grams |
-| `fat_g` | `DECIMAL(5, 1)` | `DEFAULT 0.0`, `CHECK(fat_g >= 0)` | Total fat content in grams |
-| `image_url` | `VARCHAR(255)` | `NULL` | Photo URL of the dish |
-| `is_available` | `BOOLEAN` | `DEFAULT TRUE` | Availability flag |
-| `created_at` | `TIMESTAMP WITH TIME ZONE`| `DEFAULT CURRENT_TIMESTAMP` | Created timestamp |
+| `id` | `VARCHAR(36)` | `PRIMARY KEY` | Report ID |
+| `reporter_id` | `VARCHAR(36)` | `NOT NULL`, `REFERENCES users(id)` | Submitting user |
+| `reported_user_id`| `VARCHAR(36)` | `NOT NULL`, `REFERENCES users(id)` | Flagged user |
+| `report_type` | `VARCHAR(30)` | `NOT NULL` | `block`, `spam`, `harassment`, `false_profile` |
+| `reason_details` | `TEXT` | `NULL` | Detailed description of incident |
+| `status` | `VARCHAR(20)` | `DEFAULT 'pending'`, `CHECK(status IN ('pending', 'reviewed', 'dismissed', 'banned'))` | Moderation status |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Submission timestamp |
 
 ---
 
-### 3.5 Table: `reviews`
-Captures user star ratings, honest text feedback, verified photos, and fat content assessments.
+## 4. Compatibility Scoring Mathematical Algorithm
 
-| Column | Data Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `UUID` / `BIGINT` | `PRIMARY KEY` | Unique review ID |
-| `user_id` | `UUID` / `BIGINT` | `NOT NULL`, `REFERENCES users(id) ON DELETE CASCADE` | Author of review |
-| `restaurant_id` | `UUID` / `BIGINT` | `NOT NULL`, `REFERENCES restaurants(id) ON DELETE CASCADE` | Reviewed restaurant |
-| `rating` | `SMALLINT` | `NOT NULL`, `CHECK(rating BETWEEN 1 AND 5)` | Overall satisfaction |
-| `comment` | `TEXT` | `NOT NULL` | Review body |
-| `photo_url` | `VARCHAR(255)` | `NULL` | Customer uploaded photo URL |
-| `fat_score_rating` | `SMALLINT` | `CHECK(fat_score_rating BETWEEN 1 AND 5)`| 1 = Very oily, 5 = Very clean |
-| `created_at` | `TIMESTAMP WITH TIME ZONE`| `DEFAULT CURRENT_TIMESTAMP` | Review submission timestamp |
+The compatibility percentage between User $A$ and User $B$ is computed as a weighted normalized Manhattan distance across behavioral dimensions:
 
----
+$$\text{Compatibility Score} = 100\% \times \left(1 - \sum_{i=1}^{N} w_i \cdot \frac{|A_i - B_i|}{\text{MaxDiff}_i}\right) - \text{Penalty}_{\text{DealBreakers}}$$
 
-### 3.6 Table: `order_inquiries` & `inquiry_items`
-Tracks pre-ordered dishes and aggregate calorie summaries for direct merchant contact.
-
-| Column | Data Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `UUID` / `BIGINT` | `PRIMARY KEY` | Inquiry ID |
-| `user_id` | `UUID` / `BIGINT` | `NOT NULL`, `REFERENCES users(id)` | Customer ID |
-| `restaurant_id` | `UUID` / `BIGINT` | `NOT NULL`, `REFERENCES restaurants(id)` | Target restaurant |
-| `status` | `VARCHAR(20)` | `DEFAULT 'pending'` | `pending`, `contacted`, `completed` |
-| `total_calories` | `INTEGER` | `NOT NULL`, `DEFAULT 0` | Aggregated calorie sum |
-| `estimated_price`| `DECIMAL(10, 2)` | `NOT NULL`, `DEFAULT 0.00` | Estimated subtotal |
-| `notes` | `TEXT` | `NULL` | Dietary requests (e.g. less oil) |
-| `created_at` | `TIMESTAMP WITH TIME ZONE`| `DEFAULT CURRENT_TIMESTAMP` | Timestamp |
+### Parameter Weights ($w_i$):
+- **Sleep Schedule ($w_1 = 0.30$):** Maximum difference $\text{MaxDiff} = 2$.
+- **Cleanliness Level ($w_2 = 0.30$):** Maximum difference $\text{MaxDiff} = 4$.
+- **Guest Policy ($w_3 = 0.20$):** Maximum difference $\text{MaxDiff} = 2$.
+- **Noise & Social Tolerance ($w_4 = 0.20$):** Maximum difference $\text{MaxDiff} = 2$.
+- **Deal-Breakers (Smoking / Pet mismatch):** Deducts a hard $25\%$ penalty or flags a non-negotiable warning badge if hard conflict occurs.
 
 ---
 
-## 4. Indexing & Performance Optimization
+## 5. Indexing & Query Performance Optimization
 
 ```sql
--- Fast lookup for user authentication
+-- Fast user authentication lookup
 CREATE UNIQUE INDEX idx_users_email ON users(email);
 
--- Geospatial spatial index for restaurant proximity search
-CREATE INDEX idx_restaurants_coords ON restaurants(latitude, longitude);
+-- Rapid discovery query filtering by location, housing status, and budget range
+CREATE INDEX idx_user_profiles_filter ON user_profiles(preferred_location, housing_status, budget_max);
 
--- Fast filtering by health rating and verification
-CREATE INDEX idx_restaurants_health ON restaurants(health_rating DESC, is_verified);
+-- Quick retrieval of completed quiz profiles for match calculation
+CREATE INDEX idx_user_profiles_quiz ON user_profiles(quiz_completed);
 
--- Rapid menu retrieval and calorie range filtering
-CREATE INDEX idx_menu_items_restaurant ON menu_items(restaurant_id);
-CREATE INDEX idx_menu_items_calories ON menu_items(calories);
+-- Fast room listings search by district and rent price
+CREATE INDEX idx_room_listings_search ON room_listings(city_district, monthly_rent, is_available);
 
--- Review lookups by restaurant with sorting by recent first
-CREATE INDEX idx_reviews_restaurant ON reviews(restaurant_id, created_at DESC);
+-- Direct messaging thread lookups and chronological ordering
+CREATE INDEX idx_messages_conversation_time ON messages(conversation_id, created_at ASC);
+CREATE INDEX idx_conv_participants_user ON conversation_participants(user_id);
 ```
 
 ---
 
-## 5. SQL DDL Schema Script (PostgreSQL / SQLite Compatible)
+## 6. SQL DDL Schema Script (PostgreSQL / SQLite Compatible)
 
 ```sql
--- Enable UUID extension if using PostgreSQL
--- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- ==========================================================
+-- RoomSync Database Schema Definition
+-- Compatible with PostgreSQL 16+ and SQLite 3.35+
+-- ==========================================================
 
+-- 1. Users Table
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(36) PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    full_name VARCHAR(100) NOT NULL,
-    role VARCHAR(20) DEFAULT 'customer' CHECK(role IN ('customer', 'merchant', 'admin')),
-    daily_calorie_target INTEGER DEFAULT 2000 CHECK(daily_calorie_target > 500),
+    full_name VARCHAR(120) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS restaurants (
+-- 2. User Profiles Table
+CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id VARCHAR(36) PRIMARY KEY,
+    avatar_url VARCHAR(500),
+    gender VARCHAR(30),
+    occupation VARCHAR(100),
+    bio TEXT,
+    budget_min DECIMAL(10, 2) DEFAULT 0.00 CHECK(budget_min >= 0),
+    budget_max DECIMAL(10, 2) NOT NULL CHECK(budget_max >= budget_min),
+    preferred_location VARCHAR(150) NOT NULL,
+    target_move_in DATE,
+    housing_status VARCHAR(20) DEFAULT 'needs_room' CHECK(housing_status IN ('needs_room', 'has_room', 'flexible')),
+    quiz_completed BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 3. Habit & Lifestyle Profiles Table
+CREATE TABLE IF NOT EXISTS habit_profiles (
+    user_id VARCHAR(36) PRIMARY KEY,
+    sleep_schedule SMALLINT NOT NULL CHECK(sleep_schedule BETWEEN 1 AND 3),
+    cleanliness_level SMALLINT NOT NULL CHECK(cleanliness_level BETWEEN 1 AND 5),
+    guest_frequency SMALLINT NOT NULL CHECK(guest_frequency BETWEEN 1 AND 3),
+    noise_tolerance SMALLINT NOT NULL CHECK(noise_tolerance BETWEEN 1 AND 3),
+    smoking_policy SMALLINT NOT NULL CHECK(smoking_policy BETWEEN 1 AND 3),
+    pet_policy SMALLINT NOT NULL CHECK(pet_policy BETWEEN 1 AND 4),
+    work_mode SMALLINT DEFAULT 1 CHECK(work_mode BETWEEN 1 AND 3),
+    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 4. Room Listings Table
+CREATE TABLE IF NOT EXISTS room_listings (
     id VARCHAR(36) PRIMARY KEY,
-    owner_id VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
-    name VARCHAR(150) NOT NULL,
-    description TEXT,
+    host_user_id VARCHAR(36) NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    description TEXT NOT NULL,
+    monthly_rent DECIMAL(10, 2) NOT NULL CHECK(monthly_rent > 0),
+    deposit_amount DECIMAL(10, 2) DEFAULT 0.00 CHECK(deposit_amount >= 0),
+    city_district VARCHAR(100) NOT NULL,
     address VARCHAR(255) NOT NULL,
-    latitude DECIMAL(10, 7) NOT NULL,
-    longitude DECIMAL(10, 7) NOT NULL,
-    phone_number VARCHAR(20) NOT NULL,
-    health_rating DECIMAL(3, 2) DEFAULT 5.00 CHECK(health_rating >= 1.00 AND health_rating <= 5.00),
-    price_tier SMALLINT DEFAULT 1 CHECK(price_tier BETWEEN 1 AND 4),
-    is_verified BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS categories (
-    id VARCHAR(36) PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,
-    slug VARCHAR(50) NOT NULL UNIQUE,
-    icon_url VARCHAR(255)
-);
-
-CREATE TABLE IF NOT EXISTS restaurant_categories (
-    restaurant_id VARCHAR(36) REFERENCES restaurants(id) ON DELETE CASCADE,
-    category_id VARCHAR(36) REFERENCES categories(id) ON DELETE CASCADE,
-    PRIMARY KEY (restaurant_id, category_id)
-);
-
-CREATE TABLE IF NOT EXISTS menu_items (
-    id VARCHAR(36) PRIMARY KEY,
-    restaurant_id VARCHAR(36) NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
-    name VARCHAR(120) NOT NULL,
-    description TEXT,
-    price DECIMAL(10, 2) NOT NULL CHECK(price >= 0),
-    calories INTEGER NOT NULL CHECK(calories >= 0),
-    protein_g DECIMAL(5, 1) DEFAULT 0.0 CHECK(protein_g >= 0),
-    carbs_g DECIMAL(5, 1) DEFAULT 0.0 CHECK(carbs_g >= 0),
-    fat_g DECIMAL(5, 1) DEFAULT 0.0 CHECK(fat_g >= 0),
-    image_url VARCHAR(255),
+    available_from DATE NOT NULL,
     is_available BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (host_user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS reviews (
+-- 5. Listing Images Table
+CREATE TABLE IF NOT EXISTS listing_images (
     id VARCHAR(36) PRIMARY KEY,
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    restaurant_id VARCHAR(36) NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
-    rating SMALLINT NOT NULL CHECK(rating BETWEEN 1 AND 5),
-    comment TEXT NOT NULL,
-    photo_url VARCHAR(255),
-    fat_score_rating SMALLINT CHECK(fat_score_rating BETWEEN 1 AND 5),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    listing_id VARCHAR(36) NOT NULL,
+    image_url VARCHAR(500) NOT NULL,
+    is_primary BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (listing_id) REFERENCES room_listings(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS order_inquiries (
+-- 6. Conversations Table
+CREATE TABLE IF NOT EXISTS conversations (
     id VARCHAR(36) PRIMARY KEY,
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    restaurant_id VARCHAR(36) NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
-    status VARCHAR(20) DEFAULT 'pending' CHECK(status IN ('pending', 'contacted', 'completed', 'cancelled')),
-    total_calories INTEGER NOT NULL DEFAULT 0,
-    estimated_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS inquiry_items (
+-- 7. Conversation Participants Table
+CREATE TABLE IF NOT EXISTS conversation_participants (
+    conversation_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    last_read_at TIMESTAMP,
+    PRIMARY KEY (conversation_id, user_id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 8. Messages Table
+CREATE TABLE IF NOT EXISTS messages (
     id VARCHAR(36) PRIMARY KEY,
-    inquiry_id VARCHAR(36) NOT NULL REFERENCES order_inquiries(id) ON DELETE CASCADE,
-    menu_item_id VARCHAR(36) NOT NULL REFERENCES menu_items(id) ON DELETE RESTRICT,
-    quantity INTEGER NOT NULL DEFAULT 1 CHECK(quantity > 0),
-    item_calories INTEGER NOT NULL
+    conversation_id VARCHAR(36) NOT NULL,
+    sender_id VARCHAR(36) NOT NULL,
+    content TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 9. User Safety Reports Table
+CREATE TABLE IF NOT EXISTS user_safety_reports (
+    id VARCHAR(36) PRIMARY KEY,
+    reporter_id VARCHAR(36) NOT NULL,
+    reported_user_id VARCHAR(36) NOT NULL,
+    report_type VARCHAR(30) NOT NULL CHECK(report_type IN ('block', 'spam', 'harassment', 'false_profile')),
+    reason_details TEXT,
+    status VARCHAR(20) DEFAULT 'pending' CHECK(status IN ('pending', 'reviewed', 'dismissed', 'banned')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (reported_user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```
 
 ---
 
-## 6. Seed Data for Testing & Demonstration
+## 7. Seed Data for Testing & Demonstration
 
 ```sql
--- Seed Categories
-INSERT INTO categories (id, name, slug, icon_url) VALUES
-('cat-01', 'Low Calorie', 'low-calorie', 'https://cdn.nutridine.app/icons/low-cal.svg'),
-('cat-02', 'High Protein', 'high-protein', 'https://cdn.nutridine.app/icons/protein.svg'),
-('cat-03', 'Keto & Low Carb', 'keto', 'https://cdn.nutridine.app/icons/keto.svg'),
-('cat-04', 'Clean Bowls', 'clean-bowls', 'https://cdn.nutridine.app/icons/salad.svg');
+-- Seed Users
+INSERT INTO users (id, email, password_hash, full_name, is_active) VALUES
+('usr-001', 'alex.chen@university.edu', '$2b$12$e8xL47rDkmH7Qn98u2jZ0eR9iJmC3w9K2o9uQeR9iJmC3w9K2o9uQ', 'Alex Chen', TRUE),
+('usr-002', 'maya.patel@designstudio.com', '$2b$12$e8xL47rDkmH7Qn98u2jZ0eR9iJmC3w9K2o9uQeR9iJmC3w9K2o9uQ', 'Maya Patel', TRUE),
+('usr-003', 'ethan.vance@techcorp.io', '$2b$12$e8xL47rDkmH7Qn98u2jZ0eR9iJmC3w9K2o9uQeR9iJmC3w9K2o9uQ', 'Ethan Vance', TRUE);
 
--- Seed Restaurants
-INSERT INTO restaurants (id, name, description, address, latitude, longitude, phone_number, health_rating, price_tier, is_verified) VALUES
-('rest-01', 'Green Garden Clean Bistro', 'Organic bowls and low-fat lean protein dishes.', '200 Victoria St, Bangkok', 13.756331, 100.501765, '0234839948', 4.8, 2, TRUE),
-('rest-02', 'Yoshinoya Health Protein Bowls', 'Lean beef and steamed vegetables with transparent calorie tags.', 'Siam Square One, Bangkok', 13.745672, 100.534210, '026581234', 4.5, 1, TRUE);
+-- Seed User Profiles
+INSERT INTO user_profiles (user_id, avatar_url, gender, occupation, bio, budget_min, budget_max, preferred_location, target_move_in, housing_status, quiz_completed) VALUES
+('usr-001', 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6', 'Male', 'Computer Science Senior', 'CS major who enjoys gaming and quiet study nights. Easygoing and tidy.', 400.00, 650.00, 'University District', '2026-09-01', 'needs_room', TRUE),
+('usr-002', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330', 'Female', 'UX/UI Designer', 'Early riser, love cooking clean meals, keeping the living room spotless.', 600.00, 900.00, 'Downtown Metro', '2026-09-15', 'needs_room', TRUE),
+('usr-003', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d', 'Male', 'Software Engineer', 'Have a spacious private bedroom in a 2BR modern condo near tech hub.', 700.00, 850.00, 'Downtown Metro', '2026-10-01', 'has_room', TRUE);
 
--- Seed Menu Items
-INSERT INTO menu_items (id, restaurant_id, name, description, price, calories, protein_g, carbs_g, fat_g, image_url) VALUES
-('dish-01', 'rest-01', 'Grilled Chicken Avocado Salad', 'Herb-marinated lean chicken breast, organic greens, lemon dressing', 180.00, 380, 42.0, 14.0, 12.0, 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c'),
-('dish-02', 'rest-01', 'Salmon Quinoa Energy Bowl', 'Norwegian wild salmon, tri-color quinoa, steamed broccoli', 240.00, 490, 36.0, 45.0, 15.0, 'https://images.unsplash.com/photo-1540420773420-3366772f4999'),
-('dish-03', 'rest-02', 'Lean Beef Gyudon (Low-Sodium)', 'Thin sliced premium lean beef with steamed brown rice', 175.00, 450, 28.0, 52.0, 9.0, 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624');
+-- Seed Habit Profiles (Lifestyle Vectors)
+-- usr-001 (Alex): Night owl (3), Tidy level 4, Occasional guests (2), Moderate noise (2), Non-smoker (1), Cat friendly (2)
+INSERT INTO habit_profiles (user_id, sleep_schedule, cleanliness_level, guest_frequency, noise_tolerance, smoking_policy, pet_policy, work_mode) VALUES
+('usr-001', 3, 4, 2, 2, 1, 2, 2);
+
+-- usr-002 (Maya): Early riser (1), Deep clean level 5, Rare guests (1), Quiet sanctuary (1), Non-smoker (1), No pets (1)
+INSERT INTO habit_profiles (user_id, sleep_schedule, cleanliness_level, guest_frequency, noise_tolerance, smoking_policy, pet_policy, work_mode) VALUES
+('usr-002', 1, 5, 1, 1, 1, 1, 1);
+
+-- usr-003 (Ethan): Moderate sleep (2), Clean level 4, Occasional guests (2), Moderate noise (2), Non-smoker (1), Pet friendly (4)
+INSERT INTO habit_profiles (user_id, sleep_schedule, cleanliness_level, guest_frequency, noise_tolerance, smoking_policy, pet_policy, work_mode) VALUES
+('usr-003', 2, 4, 2, 2, 1, 4, 3);
+
+-- Seed Room Listing for Ethan (usr-003)
+INSERT INTO room_listings (id, host_user_id, title, description, monthly_rent, deposit_amount, city_district, address, available_from, is_available) VALUES
+('lst-001', 'usr-003', 'Bright Sunny Master Bedroom in 2BR Luxury Condo', 'Furnished bedroom with private bath, high-speed fiber internet, and in-unit washer/dryer. Looking for a clean, respectful professional or student.', 750.00, 750.00, 'Downtown Metro', '742 Evergreen Blvd, Metro Heights', '2026-10-01', TRUE);
+
+-- Seed Listing Image
+INSERT INTO listing_images (id, listing_id, image_url, is_primary) VALUES
+('img-001', 'lst-001', 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af', TRUE);
+
+-- Seed Sample Conversation between Ethan (usr-003) and Alex (usr-001)
+INSERT INTO conversations (id) VALUES ('cnv-001');
+
+INSERT INTO conversation_participants (conversation_id, user_id) VALUES
+('cnv-001', 'usr-001'),
+('cnv-001', 'usr-003');
+
+INSERT INTO messages (id, conversation_id, sender_id, content, is_read) VALUES
+('msg-001', 'cnv-001', 'usr-001', 'Hey Ethan, noticed we matched at 86% compatibility! Is the room near the campus shuttle still available?', TRUE),
+('msg-002', 'cnv-001', 'usr-003', 'Hey Alex! Yes it is. Saw you are a CS student with similar quiet evening habits. Would you like to schedule a virtual tour this Saturday?', TRUE);
 ```
-
